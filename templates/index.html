@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EV Charging Station Chatbot</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+            display: flex;
+            gap: 20px;
+        }
+        .sidebar {
+            width: 300px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        .chat-container {
+            flex: 1;
+            max-width: 800px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        .chat-header {
+            background-color: #4CAF50;
+            color: white;
+            padding: 15px;
+            text-align: center;
+        }
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            padding: 20px;
+        }
+        .message {
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 5px;
+            max-width: 80%;
+        }
+        .user-message {
+            background-color: #e3f2fd;
+            margin-left: auto;
+        }
+        .bot-message {
+            background-color: #f1f1f1;
+        }
+        .input-container {
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-top: 1px solid #ddd;
+        }
+        #question-input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 10px;
+        }
+        #send-button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #send-button:hover {
+            background-color: #45a049;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            margin: 10px 0;
+        }
+        .predefined-questions {
+            margin-top: 20px;
+        }
+        .predefined-question {
+            background-color: #f1f1f1;
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        .predefined-question:hover {
+            background-color: #e3f2fd;
+        }
+        .sidebar h3 {
+            color: #4CAF50;
+            margin-bottom: 15px;
+        }
+        .response-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 10px 0;
+        }
+        .response-table th, .response-table td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        .response-table th {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .response-table tr:nth-child(even) {
+            background-color: #f2f2f2;
+        }
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+            .sidebar {
+                width: 100%;
+            }
+            .response-table {
+                display: block;
+                overflow-x: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="sidebar">
+        <h3>Predefined Questions</h3>
+        <div class="predefined-questions">
+            <div class="predefined-question" onclick="usePredefinedQuestion(this)">
+                How many total stations are listed in San Jose, CA?
+            </div>
+            <div class="predefined-question" onclick="usePredefinedQuestion(this)">
+                How many Tesla stations are available in San Jose, CA? Vendor name is available in Title.
+            </div>
+            <div class="predefined-question" onclick="usePredefinedQuestion(this)">
+                List all vendors with their station count, Vendor name is available in Title. Show the result in Table format in station count descending order? ignore all null, NA, empty fields.
+            </div>
+            <div class="predefined-question" onclick="usePredefinedQuestion(this)">
+                count the number of rows in the dataset, groping the rows with unique based on title. Just return the title and its row count, in table format.
+            </div>
+            <div class="predefined-question" onclick="usePredefinedQuestion(this)">
+                Count the number of rows in the dataset where the address contains 'San Jose, CA' and title has "ChargePoint". Just return the number.
+            </div>
+            <div class="predefined-question" onclick="usePredefinedQuestion(this)">
+                Count the number of rows in the dataset where the address contains 'San Jose, CA' and title contain "ChargePoint". Just return the number.
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat-header">
+            <h2>EV Charging Station Chatbot</h2>
+        </div>
+        <div class="chat-messages" id="chat-messages">
+            <div class="message bot-message">
+                Hello! I'm your EV Charging Station assistant. Ask me anything about the charging stations in the dataset.
+            </div>
+        </div>
+        <div class="input-container">
+            <input type="text" id="question-input" placeholder="Type your question here...">
+            <button id="send-button">Send</button>
+            <div class="loading" id="loading">Thinking...</div>
+        </div>
+    </div>
+
+    <script>
+        const chatMessages = document.getElementById('chat-messages');
+        const questionInput = document.getElementById('question-input');
+        const sendButton = document.getElementById('send-button');
+        const loading = document.getElementById('loading');
+
+        function formatTableResponse(text) {
+            // Check if the response contains table-like data
+            if (text.includes('title') && (text.includes('count') || text.includes('stationCount'))) {
+                try {
+                    // Create a table element
+                    const table = document.createElement('table');
+                    table.className = 'response-table';
+                    
+                    // Create table header
+                    const thead = document.createElement('thead');
+                    const headerRow = document.createElement('tr');
+                    ['Vendor', 'Count'].forEach(headerText => {
+                        const th = document.createElement('th');
+                        th.textContent = headerText;
+                        headerRow.appendChild(th);
+                    });
+                    thead.appendChild(headerRow);
+                    table.appendChild(thead);
+                    
+                    // Create table body
+                    const tbody = document.createElement('tbody');
+                    
+                    // Parse the text into entries
+                    const entries = [];
+                    const parts = text.split(/\s+/).filter(part => part.trim());
+                    
+                    // Skip 'title' and 'count' from parts
+                    let currentIndex = 2; // Skip 'title' and 'count'
+                    
+                    while (currentIndex < parts.length) {
+                        // First part is the index number
+                        currentIndex++; // Skip index number
+                        
+                        // Collect vendor name parts until we hit a number
+                        let vendorName = [];
+                        while (currentIndex < parts.length && 
+                               isNaN(parseInt(parts[currentIndex]))) {
+                            vendorName.push(parts[currentIndex]);
+                            currentIndex++;
+                        }
+                        
+                        // Last part is the count
+                        if (currentIndex < parts.length) {
+                            const count = parts[currentIndex];
+                            entries.push({
+                                vendor: vendorName.join(' '),
+                                count: count
+                            });
+                            currentIndex++;
+                        }
+                    }
+                    
+                    // Create table rows
+                    entries.forEach(entry => {
+                        const row = document.createElement('tr');
+                        
+                        const vendorCell = document.createElement('td');
+                        vendorCell.textContent = entry.vendor;
+                        
+                        const countCell = document.createElement('td');
+                        countCell.textContent = entry.count;
+                        
+                        row.appendChild(vendorCell);
+                        row.appendChild(countCell);
+                        tbody.appendChild(row);
+                    });
+                    
+                    table.appendChild(tbody);
+                    return table;
+                } catch (e) {
+                    console.error('Error formatting table:', e);
+                    return text;
+                }
+            }
+            return text;
+        }
+
+        function addMessage(message, isUser) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            
+            if (typeof message === 'string') {
+                const formattedMessage = formatTableResponse(message);
+                if (formattedMessage instanceof HTMLElement) {
+                    messageDiv.appendChild(formattedMessage);
+                } else {
+                    messageDiv.textContent = formattedMessage;
+                }
+            } else {
+                messageDiv.appendChild(message);
+            }
+            
+            chatMessages.appendChild(messageDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function usePredefinedQuestion(element) {
+            questionInput.value = element.textContent.trim();
+            sendQuestion();
+        }
+
+        async function sendQuestion() {
+            const question = questionInput.value.trim();
+            if (!question) return;
+
+            // Add user message
+            addMessage(question, true);
+            questionInput.value = '';
+            loading.style.display = 'block';
+
+            try {
+                const response = await fetch('/ask', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ question }),
+                });
+
+                const data = await response.json();
+                if (data.error) {
+                    addMessage('Sorry, there was an error processing your question.', false);
+                } else {
+                    addMessage(data.response, false);
+                }
+            } catch (error) {
+                addMessage('Sorry, there was an error connecting to the server.', false);
+            } finally {
+                loading.style.display = 'none';
+            }
+        }
+
+        sendButton.addEventListener('click', sendQuestion);
+        questionInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendQuestion();
+            }
+        });
+    </script>
+</body>
+</html> 
