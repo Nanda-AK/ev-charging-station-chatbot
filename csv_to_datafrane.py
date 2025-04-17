@@ -13,7 +13,8 @@ from pandasai.llm import OpenAI
 
 llm = OpenAI(api_token=os.getenv('OPENAI_API_KEY'), temperature=0.02)
 
-filename = 'output_dataframe.csv'
+#filename = 'output_dataframe.csv'
+filename = 'cleaned_ev_stations.csv'
 df = pd.read_csv(filename)
 
 # Optional: preview
@@ -23,7 +24,7 @@ df = df.select_dtypes(include=["number", "object", "bool"])
 
 # Select only columns that exist in the DataFrame
 #available_columns = ["title", "address", "reviewsCount", "totalScore", "postalCode", "reviews", "rank"]
-available_columns = ["title", "address", "reviewsCount", "totalScore", "postalCode", "rank"]
+available_columns = ["title", "address", "reviewsCount", "totalScore", "postalCode", "rank", "review_snippets"]
 df_small = df[[col for col in available_columns if col in df.columns]]
 
 # Simple configuration without cache

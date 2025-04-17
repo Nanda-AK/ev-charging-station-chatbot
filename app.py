@@ -14,28 +14,36 @@ app = Flask(__name__)
 llm = OpenAI(api_token=os.getenv('OPENAI_API_KEY'), temperature=0.02)
 
 # Load and prepare the DataFrame
-filename = 'output_dataframe.csv'
-df = pd.read_csv(filename)
-df = df.select_dtypes(include=["number", "object", "bool"])
+@app.before_first_request
+def load_data():
+    global sdf
+    try:
+        #filename = 'output_dataframe.csv'
+        filename = 'cleaned_ev_stations.csv'
+        df = pd.read_csv(filename)
+        df = df.select_dtypes(include=["number", "object", "bool"])
 
-# Select specific columns
-available_columns = ["title", "address", "reviewsCount", "totalScore", "postalCode", "rank"]
-df_small = df[[col for col in available_columns if col in df.columns]]
+        # Select specific columns
+        available_columns = ["title", "address", "reviewsCount", "totalScore", "postalCode", "rank"]
+        df_small = df[[col for col in available_columns if col in df.columns]]
 
-# Configure SmartDataframe
-config = {
-    "llm": llm,
-    "enable_cache": False,
-    "use_error_correction_framework": False,
-    "cache": None,
-    "save_charts": False,
-    "save_logs": False,
-    "verbose": True,
-    "max_retries": 1,
-    "use_duckdb": False
-}
+        # Configure SmartDataframe
+        config = {
+            "llm": llm,
+            "enable_cache": False,
+            "use_error_correction_framework": False,
+            "cache": None,
+            "save_charts": False,
+            "save_logs": False,
+            "verbose": True,
+            "max_retries": 1,
+            "use_duckdb": False
+        }
 
-sdf = SmartDataframe(df_small, config=config)
+        sdf = SmartDataframe(df_small, config=config)
+    except Exception as e:
+        print(f"Error loading data: {str(e)}")
+        sdf = None
 
 @app.route('/')
 def home():
@@ -44,6 +52,9 @@ def home():
 @app.route('/ask', methods=['POST'])
 def ask():
     try:
+        if not sdf:
+            return jsonify({'error': 'Data not loaded properly'}), 500
+            
         data = request.json
         question = data.get('question')
         
@@ -63,5 +74,6 @@ def ask():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+# For local development
 if __name__ == '__main__':
     app.run(debug=True) 
